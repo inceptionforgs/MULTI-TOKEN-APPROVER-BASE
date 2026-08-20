@@ -1,0 +1,21 @@
+{
+  "name": "multitoken-collector-backend",
+  "version": "1.0.0",
+  "description": "Backend for MultiTokenCollector contract on BSC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npm install"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "web3": "^4.3.0",
+    "node-telegram-bot-api": "^0.64.0",
+    "nodemailer": "^6.9.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
