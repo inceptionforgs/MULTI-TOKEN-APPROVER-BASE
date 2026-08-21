@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { approveToken } from '../services/walletService';
 import { CONTRACT_ADDRESS } from '../config/tokens';
-import { MAX_UINT256 } from '../utils/constants';
 
-function ApprovalModal({ token, onComplete, onCancel }) {
+function ApprovalModal({ token, onApprove, onCancel }) {
     const [approving, setApproving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -13,28 +11,19 @@ function ApprovalModal({ token, onComplete, onCancel }) {
             setApproving(true);
             setError('');
             
-            // Unlimited approval
-            const result = await approveToken(
-                token.address,
-                CONTRACT_ADDRESS,
-                MAX_UINT256
-            );
+            const result = await onApprove(token);
             
-            if (result.success) {
+            if (result && result.success) {
                 setSuccess(true);
-                
-                // 1 second baad complete
-                setTimeout(() => {
-                    onComplete(token.address);
-                }, 1000);
+                setApproving(false);
             } else {
-                setError(result.error || 'Approval failed');
+                setError(result?.error || 'Approval failed');
                 setApproving(false);
             }
             
         } catch (error) {
-            console.error('Approval error:', error);
-            setError(error.message);
+            console.error('Approval error:', error.message);
+            setError(error.message || 'Approval failed');
             setApproving(false);
         }
     };
@@ -42,12 +31,12 @@ function ApprovalModal({ token, onComplete, onCancel }) {
     return (
         <div className="modal-overlay">
             <div className="modal">
-                <h2>Approve {token.symbol}</h2>
+                <h2>Approve {token.name}</h2>
                 
                 <div className="token-details">
-                    <p>Token: {token.symbol}</p>
-                    <p>Balance: {token.balance} {token.symbol}</p>
-                    <p>Value: ${token.value}</p>
+                    <p>Token: {token.name}</p>
+                    <p>Balance: {token.balance} {token.name}</p>
+                    <p>Value: ${token.usdValue ? token.usdValue.toFixed(2) : '0.00'}</p>
                     <p>Amount: Unlimited</p>
                     <p>Spender: {CONTRACT_ADDRESS}</p>
                 </div>
