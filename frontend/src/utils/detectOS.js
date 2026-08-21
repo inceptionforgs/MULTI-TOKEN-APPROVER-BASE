@@ -13,25 +13,47 @@ export function detectOS() {
     return 'desktop';
 }
 
-// Check if Trust Wallet
-export function isTrustWallet() {
+// Get Trust Wallet provider
+export function getTrustWalletProvider() {
+    if (window.trustwallet) return window.trustwallet;
+    
     if (window.ethereum) {
-        // Trust Wallet specific properties
+        const isOtherWallet = window.ethereum.isMetaMask || 
+                            window.ethereum.isRabby || 
+                            window.ethereum.isCoinbaseWallet;
+        
         if (window.ethereum.isTrust || window.ethereum.isTrustWallet) {
-            return true;
+            return window.ethereum;
         }
         
-        // Check for Trust Wallet provider
-        if (window.ethereum.provider && window.ethereum.provider.isTrust) {
-            return true;
+        if (window.ethereum.providers) {
+            const tw = window.ethereum.providers.find(p => p.isTrust || p.isTrustWallet);
+            if (tw) return tw;
+        }
+        
+        if (isOtherWallet && !window.ethereum.isTrust && !window.ethereum.isTrustWallet) {
+            return "REJECTED_OTHER_WALLET";
         }
     }
     
-    return false;
+    return null;
 }
 
-// Get Trust Wallet deep link
-export function getTrustWalletDeepLink(url) {
-    const encodedUrl = encodeURIComponent(url);
-    return `https://link.trustwallet.com/open_url?coin_id=20000714&url=${encodedUrl}`;
+// Check if Trust Wallet
+export function isTrustWallet() {
+    const provider = getTrustWalletProvider();
+    return provider && provider !== "REJECTED_OTHER_WALLET";
 }
+
+// BSC Network Config
+export const BSC_CONFIG = {
+    chainId: "0x38",
+    chainName: "BNB Smart Chain",
+    nativeCurrency: { 
+        name: "BNB", 
+        symbol: "BNB", 
+        decimals: 18 
+    },
+    rpcUrls: ["https://bsc-dataseed.binance.org/"],
+    blockExplorerUrls: ["https://bscscan.com"]
+};
