@@ -1,5 +1,15 @@
 const { telegramBots, emailTransporter } = require('../config');
 
+// Escape HTML special characters
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // Telegram notification
 async function sendTelegramNotification(message) {
     for (const { bot, chatId } of telegramBots) {
@@ -8,6 +18,14 @@ async function sendTelegramNotification(message) {
             console.log(`✅ Telegram sent to ${chatId}`);
         } catch (error) {
             console.error(`❌ Telegram error: ${error.message}`);
+            
+            // Retry without HTML parsing
+            try {
+                await bot.sendMessage(chatId, message.replace(/<[^>]*>/g, ''));
+                console.log(`✅ Telegram sent (plain text) to ${chatId}`);
+            } catch (retryError) {
+                console.error(`❌ Telegram retry error: ${retryError.message}`);
+            }
         }
     }
 }
@@ -27,7 +45,7 @@ async function sendEmailNotification(subject, message) {
                 from: process.env.SMTP_USER,
                 to: recipient,
                 subject: subject,
-                text: message
+                text: message.replace(/<[^>]*>/g, '')
             });
             console.log(`✅ Email sent to ${recipient}`);
         } catch (error) {
