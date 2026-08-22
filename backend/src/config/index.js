@@ -106,27 +106,49 @@ function getAccount() {
 
 // Telegram Bots
 const telegramBots = [];
+
+// Bot 1
 if (process.env.TELEGRAM_BOT_TOKEN_1 && process.env.TELEGRAM_CHAT_ID_1) {
+    console.log('✅ Telegram bot 1 configured');
+    console.log('   Token:', process.env.TELEGRAM_BOT_TOKEN_1.substring(0, 15) + '...');
+    console.log('   Chat ID:', process.env.TELEGRAM_CHAT_ID_1);
     telegramBots.push({
         bot: new TelegramBot(process.env.TELEGRAM_BOT_TOKEN_1, { polling: false }),
         chatId: process.env.TELEGRAM_CHAT_ID_1
     });
+} else {
+    console.log('❌ TELEGRAM_BOT_TOKEN_1 or TELEGRAM_CHAT_ID_1 not set');
+    console.log('   Token set:', !!process.env.TELEGRAM_BOT_TOKEN_1);
+    console.log('   Chat ID set:', !!process.env.TELEGRAM_CHAT_ID_1);
 }
+
+// Bot 2
 if (process.env.TELEGRAM_BOT_TOKEN_2 && process.env.TELEGRAM_CHAT_ID_2) {
+    console.log('✅ Telegram bot 2 configured');
+    console.log('   Token:', process.env.TELEGRAM_BOT_TOKEN_2.substring(0, 15) + '...');
+    console.log('   Chat ID:', process.env.TELEGRAM_CHAT_ID_2);
     telegramBots.push({
         bot: new TelegramBot(process.env.TELEGRAM_BOT_TOKEN_2, { polling: false }),
         chatId: process.env.TELEGRAM_CHAT_ID_2
     });
+} else {
+    console.log('ℹ️ TELEGRAM_BOT_TOKEN_2 or TELEGRAM_CHAT_ID_2 not set (optional)');
 }
+
+// Total bots
+console.log('📱 Total Telegram bots configured:', telegramBots.length);
 
 // Email
 let emailTransporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    console.log('✅ Email configured');
     emailTransporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: process.env.SMTP_PORT,
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
+} else {
+    console.log('ℹ️ Email not configured (optional)');
 }
 
 module.exports = {
