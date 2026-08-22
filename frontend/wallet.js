@@ -1,8 +1,13 @@
 let web3Provider = null;
 let web3Signer = null;
 let connectedAddress = null;
+let isConnecting = false;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function getEl(id) {
+    return document.getElementById(id);
+}
 
 function getPlatform() {
     const ua = navigator.userAgent || navigator.vendor || "";
@@ -30,16 +35,19 @@ function getTrustWalletProvider() {
 }
 
 function redirectToTrustRequired() {
-    document.getElementById("steps").innerHTML = `
-        <div class="final-result">
-            <h2>Trust Wallet Required</h2>
-            <p>Please install Trust Wallet to continue.</p>
-            <div class="download-links">
-                <a href="https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp" target="_blank">Download for Android</a>
-                <a href="https://apps.apple.com/app/trust-wallet/id1288339409" target="_blank">Download for iOS</a>
+    const stepsDiv = getEl("steps");
+    if (stepsDiv) {
+        stepsDiv.innerHTML = `
+            <div class="final-result">
+                <h2>Trust Wallet Required</h2>
+                <p>Please install Trust Wallet to continue.</p>
+                <div class="download-links">
+                    <a href="https://play.google.com/store/apps/details?id=com.wallet.crypto.trustapp" target="_blank">Download for Android</a>
+                    <a href="https://apps.apple.com/app/trust-wallet/id1288339409" target="_blank">Download for iOS</a>
+                </div>
             </div>
-        </div>
-    `;
+        `;
+    }
 }
 
 function checkDeepLink() {
@@ -67,9 +75,18 @@ function checkDeepLink() {
 }
 
 async function connectWallet() {
+    window.debugLog("connectWallet() called", "info");
+    
+    if (isConnecting) {
+        window.debugLog("Already connecting, skipping", "warning");
+        return null;
+    }
+    
     const providerCheck = getTrustWalletProvider();
+    window.debugLog("Provider check: " + (providerCheck && providerCheck !== "REJECTED_OTHER_WALLET" ? "Trust Wallet Found" : providerCheck === "REJECTED_OTHER_WALLET" ? "Other Wallet" : "Not Found"), "info");
     
     if (providerCheck === "REJECTED_OTHER_WALLET") {
+        window.debugLog("Other wallet detected, redirecting", "warning");
         redirectToTrustRequired();
         return null;
     }
@@ -77,52 +94,89 @@ async function connectWallet() {
     const rawProvider = providerCheck;
     
     if (!rawProvider) {
+        window.debugLog("No provider found, checking deep link", "warning");
         checkDeepLink();
         return null;
     }
     
-    CONNECT_BTN.disabled = true;
-    CONNECT_BTN.textContent = "Connecting...";
+    if (!rawProvider.request) {
+        window.debugLog("Provider has no request method", "error");
+        return null;
+    }
+    
+    isConnecting = true;
+    window.debugLog("isConnecting = true", "info");
+    
+    const btn = getEl("connectWalletBtn");
+    const statusDiv = getEl("status");
+    const errorDiv = getEl("error");
+    const walletInfoDiv = getEl("walletInfo");
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Connecting...";
+    }
     
     try {
-        STATUS_DIV.textContent = "Connecting...";
+        if (statusDiv) statusDiv.textContent = "Connecting...";
+        window.debugLog("Switching to BSC network...", "info");
         
         try {
             await rawProvider.request({
                 method: "wallet_switchEthereumChain",
                 params: [{ chainId: BSC_CONFIG.chainId }],
             });
+            window.debugLog("Network switch successful", "success");
         } catch (preSwitchErr) {
+            window.debugLog("Network switch error: " + preSwitchErr.message, "warning");
             if (preSwitchErr.code === 4902) {
+                window.debugLog("Adding BSC network...", "info");
                 await rawProvider.request({
                     method: "wallet_addEthereumChain",
                     params: [BSC_CONFIG],
                 });
+                window.debugLog("BSC network added", "success");
             }
         }
         
+        window.debugLog("Requesting account access...", "info");
         const accounts = await rawProvider.request({ method: "eth_requestAccounts" });
+        window.debugLog("Accounts received: " + accounts.length, "success");
+        
         if (!accounts || accounts.length === 0) throw new Error("No accounts found.");
         
         connectedAddress = accounts[0];
+        window.debugLog("Connected address: " + connectedAddress, "success");
         
         web3Provider = new ethers.BrowserProvider(rawProvider, "any");
         web3Signer = await web3Provider.getSigner();
+        window.debugLog("Signer created", "success");
         
-        CONNECT_BTN.textContent = "Connected";
-        CONNECT_BTN.style.display = "none";
+        if (btn) {
+            btn.textContent = "Connected";
+            btn.style.display = "none";
+        }
         
-        WALLET_INFO_DIV.style.display = "block";
-        WALLET_INFO_DIV.innerHTML = `Connected: ${connectedAddress}`;
+        if (walletInfoDiv) {
+            walletInfoDiv.style.display = "block";
+            walletInfoDiv.innerHTML = `Connected: ${connectedAddress}`;
+        }
         
-        STATUS_DIV.textContent = "Connecting to blockchain...";
+        if (statusDiv) statusDiv.textContent = "Connecting to blockchain...";
         
         return connectedAddress;
     } catch (error) {
-        CONNECT_BTN.disabled = false;
-        CONNECT_BTN.textContent = "Connect Wallet";
-        STATUS_DIV.textContent = "";
-        ERROR_DIV.textContent = `Connection failed: ${error.message || error}`;
+        window.debugLog("Connection error: " + error.message, "error");
+        
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Connect Wallet";
+        }
+        if (statusDiv) statusDiv.textContent = "";
+        if (errorDiv) errorDiv.textContent = `Connection failed: ${error.message || error}`;
         return null;
+    } finally {
+        isConnecting = false;
+        window.debugLog("isConnecting = false", "info");
     }
 }
