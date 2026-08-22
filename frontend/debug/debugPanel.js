@@ -2,7 +2,6 @@
 // Production mein: debug folder delete karo + script tag remove karo
 
 (function() {
-    // Debug console panel - Bottom fixed
     const debugPanel = document.createElement("div");
     debugPanel.id = "debugPanel";
     debugPanel.style.cssText = `
@@ -20,7 +19,6 @@
         font-family: monospace;
     `;
 
-    // Panel header
     const panelHeader = document.createElement("div");
     panelHeader.style.cssText = `
         padding: 5px 10px;
@@ -70,7 +68,6 @@
     panelHeader.appendChild(title);
     panelHeader.appendChild(btnContainer);
 
-    // Log area
     const logArea = document.createElement("div");
     logArea.id = "debugLog";
     logArea.style.cssText = `
@@ -86,12 +83,10 @@
     debugPanel.appendChild(logArea);
     document.body.appendChild(debugPanel);
 
-    // Clear logs
     clearBtn.addEventListener("click", () => {
         logArea.innerHTML = "";
     });
 
-    // Copy logs
     copyBtn.addEventListener("click", () => {
         const logs = [];
         const entries = logArea.querySelectorAll('div');
@@ -139,7 +134,6 @@
         document.body.removeChild(textarea);
     }
 
-    // Debug log function
     window.debugLog = function(message, type = "info") {
         const logEntry = document.createElement("div");
         logEntry.style.cssText = `
@@ -178,7 +172,6 @@
         logArea.scrollTop = logArea.scrollHeight;
     };
 
-    // Override console methods
     const originalLog = console.log;
     const originalError = console.error;
     const originalWarn = console.warn;
@@ -198,7 +191,6 @@
         window.debugLog(args.join(' '), "warning");
     };
 
-    // Initial logs
     window.debugLog("Debug Panel initialized", "success");
     window.debugLog("Platform: " + getPlatform(), "info");
     window.debugLog("Trust Wallet: " + (getTrustWalletProvider() ? "Detected" : "Not Detected"), "info");
