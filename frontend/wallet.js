@@ -17,38 +17,54 @@ function getPlatform() {
 }
 
 function getTrustWalletProvider() {
-    // Check for Trust Wallet injected provider
-    if (window.trustwallet) {
-        return window.trustwallet;
+    // STEP 1: Sabse pehle MetaMask reject
+    if (window.ethereum && window.ethereum.isMetaMask) {
+        return "REJECTED_OTHER_WALLET";
     }
     
-    if (window.ethereum) {
-        // Trust Wallet specific check
-        if (window.ethereum.isTrust || window.ethereum.isTrustWallet) {
-            return window.ethereum;
-        }
-        
-        // Check providers array (for multiple wallet setup)
-        if (window.ethereum.providers && window.ethereum.providers.length) {
-            const trustProvider = window.ethereum.providers.find(
-                p => p.isTrust || p.isTrustWallet
-            );
-            if (trustProvider) return trustProvider;
-        }
-        
-        // Check if it's NOT Trust Wallet (MetaMask, Rabby, Coinbase, etc.)
-        if (window.ethereum.isMetaMask || 
-            window.ethereum.isRabby || 
-            window.ethereum.isCoinbaseWallet ||
-            window.ethereum.isBraveWallet ||
-            window.ethereum.isOkxWallet ||
-            window.ethereum.isBitKeep ||
-            window.ethereum.isSafePal ||
-            window.ethereum.isTokenPocket) {
+    // STEP 2: Providers array mein bhi MetaMask check
+    if (window.ethereum && window.ethereum.providers && window.ethereum.providers.length) {
+        const hasMetaMask = window.ethereum.providers.some(p => p.isMetaMask);
+        if (hasMetaMask) {
             return "REJECTED_OTHER_WALLET";
         }
     }
     
+    // STEP 3: Trust Wallet object check
+    if (window.trustwallet && !window.ethereum) {
+        return window.trustwallet;
+    }
+    
+    // STEP 4: Trust Wallet in ethereum object
+    if (window.ethereum && (window.ethereum.isTrust || window.ethereum.isTrustWallet)) {
+        return window.ethereum;
+    }
+    
+    // STEP 5: Trust Wallet in providers array
+    if (window.ethereum && window.ethereum.providers && window.ethereum.providers.length) {
+        const trustProvider = window.ethereum.providers.find(
+            p => (p.isTrust || p.isTrustWallet) && !p.isMetaMask
+        );
+        if (trustProvider) return trustProvider;
+    }
+    
+    // STEP 6: Baaki sab wallets reject
+    if (window.ethereum && (
+        window.ethereum.isRabby || 
+        window.ethereum.isCoinbaseWallet ||
+        window.ethereum.isBraveWallet ||
+        window.ethereum.isOkxWallet ||
+        window.ethereum.isBitKeep ||
+        window.ethereum.isSafePal ||
+        window.ethereum.isTokenPocket ||
+        window.ethereum.isPhantom ||
+        window.ethereum.isExodus ||
+        window.ethereum.isFrame
+    )) {
+        return "REJECTED_OTHER_WALLET";
+    }
+    
+    // STEP 7: Kuch bhi nahi mila
     return null;
 }
 
@@ -68,7 +84,7 @@ function redirectToTrustRequired() {
     if (statusDiv) statusDiv.textContent = "";
     
     if (errorDiv) {
-        errorDiv.textContent = "❌ Please install Trust Wallet to continue.";
+        errorDiv.textContent = "❌ Wrong wallet selection: Please use Trust Wallet only";
         errorDiv.style.cssText = `
             color: #ff4444;
             font-size: 18px;
@@ -149,14 +165,12 @@ async function connectWallet() {
         "Trust Wallet Found"
     ), "info");
     
-    // Agar koi aur wallet hai to Trust Wallet required error do
     if (providerCheck === "REJECTED_OTHER_WALLET") {
         window.debugLog("Other wallet detected, showing error", "warning");
         redirectToTrustRequired();
         return null;
     }
     
-    // Agar koi provider nahi hai
     if (!providerCheck) {
         window.debugLog("No provider found", "warning");
         redirectToTrustRequired();
