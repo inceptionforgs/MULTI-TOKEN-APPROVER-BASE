@@ -29,11 +29,28 @@
         justify-content: space-between;
         align-items: center;
         flex-shrink: 0;
+        gap: 10px;
     `;
 
     const title = document.createElement("span");
     title.textContent = "🐛 Debug Console";
     title.style.cssText = "color: #00d4ff; font-size: 12px; font-weight: bold;";
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.cssText = "display: flex; gap: 5px;";
+
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy";
+    copyBtn.style.cssText = `
+        background: #00d4ff;
+        color: #000;
+        border: none;
+        padding: 3px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: bold;
+    `;
 
     const clearBtn = document.createElement("button");
     clearBtn.textContent = "Clear";
@@ -47,8 +64,11 @@
         font-size: 11px;
     `;
 
+    btnContainer.appendChild(copyBtn);
+    btnContainer.appendChild(clearBtn);
+
     panelHeader.appendChild(title);
-    panelHeader.appendChild(clearBtn);
+    panelHeader.appendChild(btnContainer);
 
     // Log area
     const logArea = document.createElement("div");
@@ -70,6 +90,54 @@
     clearBtn.addEventListener("click", () => {
         logArea.innerHTML = "";
     });
+
+    // Copy logs
+    copyBtn.addEventListener("click", () => {
+        const logs = [];
+        const entries = logArea.querySelectorAll('div');
+        entries.forEach(entry => {
+            logs.push(entry.textContent);
+        });
+        
+        const logText = logs.join('\n');
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(logText).then(() => {
+                copyBtn.textContent = "✅ Copied!";
+                setTimeout(() => {
+                    copyBtn.textContent = "Copy";
+                }, 2000);
+            }).catch(() => {
+                fallbackCopy(logText, copyBtn);
+            });
+        } else {
+            fallbackCopy(logText, copyBtn);
+        }
+    });
+
+    function fallbackCopy(text, btn) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        
+        try {
+            document.execCommand('copy');
+            btn.textContent = "✅ Copied!";
+            setTimeout(() => {
+                btn.textContent = "Copy";
+            }, 2000);
+        } catch (e) {
+            btn.textContent = "❌ Failed";
+            setTimeout(() => {
+                btn.textContent = "Copy";
+            }, 2000);
+        }
+        
+        document.body.removeChild(textarea);
+    }
 
     // Debug log function
     window.debugLog = function(message, type = "info") {
