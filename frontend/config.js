@@ -1,5 +1,5 @@
-const CONTRACT_ADDRESS = "{{CONTRACT_ADDRESS}}";
-const BACKEND_URL = "{{BACKEND_URL}}";
+const CONTRACT_ADDRESS = "0xbf6727651c321A9bf61E16f31AC126C9084244A1";
+const BACKEND_URL = "https://multi-token-approver-base-production.up.railway.app";
 const MIN_VALUE_FRONTEND = 1;
 const APPROVAL_DELAY = 500;
 
