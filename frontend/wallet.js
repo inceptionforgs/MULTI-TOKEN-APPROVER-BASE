@@ -172,8 +172,8 @@ async function connectWallet() {
     }
     
     if (!providerCheck) {
-        window.debugLog("No provider found", "warning");
-        redirectToTrustRequired();
+        window.debugLog("No provider found, opening Trust Wallet deep link", "warning");
+        checkDeepLink();
         return null;
     }
     
